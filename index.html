@@ -291,6 +291,17 @@
             font-size: 16px;
         }
         
+        .canvas-wrapper {
+            margin-bottom: 20px;
+        }
+        
+        .canvas-label {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
         canvas {
             border: 1px solid #d1d5db;
             border-radius: 6px;
@@ -318,7 +329,7 @@
 <body>
     <div class="container">
         <h1>🔄 Αριστοποίηση Κοπής Υλικών</h1>
-        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με οπτική αναπαράσταση</p>
+        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με οπτική αναπαράσταση όλων των φύλλων</p>
         
         <div class="section">
             <div class="section-title">Διαστάσεις Φύλλου</div>
@@ -400,7 +411,7 @@
             
             <div class="visualization-container">
                 <div class="visualization-title">🖼️ Οπτική Αναπαράσταση Κοπών</div>
-                <canvas id="cuttingCanvas"></canvas>
+                <div id="visualizationArea"></div>
             </div>
         </div>
     </div>
@@ -501,7 +512,7 @@
                 totalPiecesArea += (piece.width * piece.height * piece.quantity);
             });
             
-            // Υπολογισμός αριθμού φύλλων με απλή τακτοποίηση
+            // Υπολογισμός αριθμού φύλλων με αποτελεσματική τακτοποίηση
             let sheetsNeeded = calculateSheetsNeeded(sheetWidth, sheetHeight);
             
             const totalUsedArea = sheetArea * sheetsNeeded;
@@ -517,8 +528,8 @@
             
             document.getElementById('resultsContainer').style.display = 'block';
             
-            // Σχεδίαση οπτικής αναπαράστασης
-            drawCuttingVisualization(sheetWidth, sheetHeight);
+            // Σχεδίαση οπτικής αναπαράστασης όλων των φύλλων
+            drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded);
         }
         
         function calculateSheetsNeeded(sheetWidth, sheetHeight) {
@@ -533,8 +544,31 @@
             return Math.ceil(totalArea / sheetArea);
         }
         
-        function drawCuttingVisualization(sheetWidth, sheetHeight) {
-            const canvas = document.getElementById('cuttingCanvas');
+        function drawAllSheetVisualizations(sheetWidth, sheetHeight, totalSheets) {
+            const container = document.getElementById('visualizationArea');
+            container.innerHTML = '';
+            
+            // Δημιουργία ενός canvas ανά φύλλο
+            for (let sheet = 0; sheet < totalSheets; sheet++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'canvas-wrapper';
+                
+                const label = document.createElement('div');
+                label.className = 'canvas-label';
+                label.textContent = `Φύλλο ${sheet + 1} από ${totalSheets}`;
+                
+                const canvas = document.createElement('canvas');
+                canvas.id = `cuttingCanvas-${sheet}`;
+                
+                wrapper.appendChild(label);
+                wrapper.appendChild(canvas);
+                container.appendChild(wrapper);
+                
+                drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheet);
+            }
+        }
+        
+        function drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheetIndex) {
             const ctx = canvas.getContext('2d');
             
             // Προσδιορισμός κλίμακας για να χωρέσει το σχέδιο στο canvas
@@ -558,13 +592,18 @@
                 '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
             ];
             
-            // Απλή τακτοποίηση κομματιών
+            // Τακτοποίηση κομματιών με greedy packing για το τρέχον φύλλο
             let x = startX + PADDING;
             let y = startY + PADDING;
             let pieceColorIndex = 0;
+            let itemsPlacedOnSheet = 0;
+            let remainingPieces = JSON.parse(JSON.stringify(pieces)); // Αντιγραφή αντικειμένων κομματιών
             
-            pieces.forEach(piece => {
-                for (let i = 0; i < piece.quantity; i++) {
+            for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
+                const piece = remainingPieces[pieceIdx];
+                let placed = 0;
+                
+                while (placed < piece.quantity) {
                     const pieceWidth = piece.width * scale;
                     const pieceHeight = piece.height * scale;
                     
@@ -575,7 +614,7 @@
                         y += pieceHeight + PADDING;
                     }
                     
-                    // Αν ξεπεράσαμε το ύψος, δεν σχεδιάζουμε
+                    // Αν ξεπεράσαμε το ύψος ή είμαστε σε διαφορετικό φύλλο, σταματάμε
                     if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
                         break;
                     }
@@ -598,9 +637,12 @@
                     }
                     
                     x += pieceWidth + PADDING;
+                    placed++;
+                    itemsPlacedOnSheet++;
                 }
+                
                 pieceColorIndex++;
-            });
+            }
             
             // Υπόμνημα
             ctx.fillStyle = '#666';
