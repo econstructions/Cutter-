@@ -3,154 +3,802 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Σύστημα Αριστοποίησης Κοπής Φύλλων</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.12.1/html2pdf.bundle.min.js"></script>
+    <title>Αριστοποίηση Κοπής Υλικών</title>
     <style>
-        :root { --primary: #4f46e5; --primary-hover: #4338ca; --success: #10b981; --success-hover: #059669; --danger: #ef4444; --danger-hover: #dc2626; --slate-800: #1e293b; --slate-100: #f1f5f9; --border: #e2e8f0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: var(--slate-800); padding: 24px; }
-        .workspace { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 420px 1fr; gap: 24px; }
-        header { grid-column: 1 / -1; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; padding: 24px 32px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; }
-        .panel { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 24px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); margin-bottom: 24px; }
-        .panel-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--slate-800); border-bottom: 2px solid var(--slate-100); padding-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        .form-group { display: flex; flex-direction: column; margin-bottom: 16px; }
-        label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
-        input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
-        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
-        .btn-primary { background-color: var(--primary); color: white; }
-        .btn-success { background-color: var(--success); color: white; }
-        .btn-danger { background-color: #fee2e2; color: var(--danger); }
-        .pieces-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background-color: var(--slate-100); }
-        .piece-item { background: white; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
-        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .metric-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
-        .metric-card p { font-size: 22px; font-weight: 700; margin-top: 6px; }
-        .visualization-container { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 24px; }
-        canvas { display: block; margin: 0 auto; background: white; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 100%; }
-        .sheet-card { background-color: var(--slate-100); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
-        #pdf-export-root { display: none; padding: 40px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .section:last-of-type {
+            border-bottom: none;
+        }
+        
+        .section-title {
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 20px;
+            background: #667eea;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+        
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .input-group.full {
+            grid-template-columns: 1fr;
+        }
+        
+        .form-field {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        label {
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        input[type="number"],
+        input[type="text"] {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="number"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .pieces-list {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .piece-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .piece-info {
+            flex: 1;
+        }
+        
+        .piece-label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .piece-dimensions {
+            color: #333;
+            font-weight: 600;
+            font-size: 16px;
+            margin-top: 4px;
+        }
+        
+        .results {
+            background: #f0fdf4;
+            border: 2px solid #86efac;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        
+        .results-title {
+            color: #16a34a;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .result-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #d1fae5;
+        }
+        
+        .result-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .result-label {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .result-value {
+            color: #16a34a;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        .efficiency {
+            background: linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .efficiency-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+        
+        .efficiency-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            border-left: 4px solid #dc2626;
+        }
+        
+        .success {
+            background: #d1fae5;
+            color: #16a34a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            border-left: 4px solid #16a34a;
+        }
+        
+        .visualization-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .visualization-title {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .canvas-wrapper {
+            margin-bottom: 20px;
+        }
+        
+        .canvas-label {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        canvas {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+        
+        .export-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 600px) {
+            .input-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .result-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
-
-    <div class="workspace">
-        <header>
-            <div><h1>🔄 Αριστοποίηση Κοπής Υλικών</h1><p>Υπολογισμός βέλτιστης χωροθέτησης</p></div>
-            <button class="btn btn-success" onclick="exportPDFReport()">📥 Εξαγωγή Αναφοράς PDF</button>
-        </header>
-
-        <aside>
-            <div class="panel">
-                <div class="panel-title">📐 Προδιαγραφές Φύλλου</div>
-                <div class="form-row">
-                    <div class="form-group"><label>Πλάτος (cm)</label><input type="number" id="sheetWidth" step="0.1"></div>
-                    <div class="form-group"><label>Ύψος (cm)</label><input type="number" id="sheetHeight" step="0.1"></div>
+    <div class="container">
+        <h1>🔄 Αριστοποίηση Κοπής Υλικών</h1>
+        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με οπτική αναπαράσταση όλων των φύλλων</p>
+        
+        <div class="section">
+            <div class="section-title">Διαστάσεις Φύλλου</div>
+            <div class="input-group">
+                <div class="form-field">
+                    <label for="sheetWidth">Πλάτος (cm)</label>
+                    <input type="number" id="sheetWidth" placeholder="π.χ. 120" min="0.1" step="0.1">
                 </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Υλικό</label><input type="text" id="materialType"></div>
-                    <div class="form-group"><label>Kerf (cm)</label><input type="number" id="kerf" step="0.05" value="0.3"></div>
+                <div class="form-field">
+                    <label for="sheetHeight">Ύψος (cm)</label>
+                    <input type="number" id="sheetHeight" placeholder="π.χ. 240" min="0.1" step="0.1">
                 </div>
             </div>
-            <div class="panel">
-                <div class="panel-title">➕ Εισαγωγή Κομματιών</div>
-                <div class="form-row">
-                    <div class="form-group"><label>Πλάτος</label><input type="number" id="pieceWidth" step="0.1"></div>
-                    <div class="form-group"><label>Ύψος</label><input type="number" id="pieceHeight" step="0.1"></div>
+            <div class="form-field" style="margin-top: 15px;">
+                <label for="materialType">Τύπος Υλικού</label>
+                <input type="text" id="materialType" placeholder="π.χ. Γυψοσανίδα, Ξύλο, κλπ.">
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Προσθήκη Κομματιών</div>
+            <div class="input-group">
+                <div class="form-field">
+                    <label for="pieceWidth">Πλάτος Κομματιού (cm)</label>
+                    <input type="number" id="pieceWidth" placeholder="π.χ. 60" min="0.1" step="0.1">
                 </div>
-                <div class="form-group"><label>Ποσότητα</label><input type="number" id="pieceQty" value="1"></div>
-                <button class="btn btn-primary" onclick="addPieceItem()">Προσθήκη στη Λίστα</button>
-                <div id="errorBox" style="color:red; margin-top:10px; display:none;"></div>
+                <div class="form-field">
+                    <label for="pieceHeight">Ύψος Κομματιού (cm)</label>
+                    <input type="number" id="pieceHeight" placeholder="π.χ. 120" min="0.1" step="0.1">
+                </div>
             </div>
-            <div class="panel">
-                <div class="panel-title">📋 Απαιτήσεις</div>
-                <div class="pieces-list" id="piecesContainer"></div>
-                <button class="btn btn-danger" style="margin-top:10px; width:100%" onclick="clearAllPiecesList()">Καθαρισμός</button>
+            <div class="input-group full">
+                <div class="form-field">
+                    <label for="pieceQuantity">Ποσότητα</label>
+                    <input type="number" id="pieceQuantity" placeholder="1" min="1" step="1" value="1">
+                </div>
             </div>
-        </aside>
-
-        <main>
-            <div class="metrics-grid">
-                <div class="metric-card"><h3>Απαιτούμενα Φύλλα</h3><p id="metricSheets">0</p></div>
-                <div class="metric-card"><h3>Αξιοποίηση</h3><p id="metricEfficiency">0.0%</p></div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="addPiece()">➕ Προσθήκη Κομματιού</button>
+                <button class="btn-secondary" onclick="clearAllPieces()">🔄 Καθαρισμός Λίστας</button>
             </div>
-            <div class="visualization-container" id="canvasOutputWrapper"></div>
-        </main>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Λίστα Κομματιών</div>
+            <div class="pieces-list" id="piecesList">
+                <div class="empty-state">Δεν υπάρχουν κομμάτια. Προσθέστε κομμάτια παραπάνω.</div>
+            </div>
+        </div>
+        
+        <div id="resultsContainer" style="display: none;">
+            <div class="results">
+                <div class="results-title">📊 Αποτελέσματα Αριστοποίησης</div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <span class="result-label">Συνολική Επιφάνεια Φύλλου</span>
+                        <span class="result-value" id="totalSheetArea">0 cm²</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Συνολική Επιφάνεια Κομματιών</span>
+                        <span class="result-value" id="totalPiecesArea">0 cm²</span>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <span class="result-label">Σπατάλη Υλικού</span>
+                        <span class="result-value" id="wasteArea">0 cm²</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Αριθμός Φύλλων Απαιτούμενα</span>
+                        <span class="result-value" id="sheetsNeeded">0</span>
+                    </div>
+                </div>
+                <div class="efficiency">
+                    <div class="efficiency-label">Ποσοστό Αξιοποίησης</div>
+                    <div class="efficiency-value" id="efficiency">0%</div>
+                </div>
+            </div>
+            
+            <div class="visualization-container">
+                <div class="visualization-title">🖼️ Οπτική Αναπαράσταση Κοπών</div>
+                <div id="visualizationArea"></div>
+                <div class="export-group">
+                    <button class="btn-primary" onclick="exportToPDF()">📥 Εξαγωγή σε PDF</button>
+                    <button class="btn-secondary" onclick="saveData()">💾 Αποθήκευση Δεδομένων</button>
+                    <button class="btn-secondary" onclick="loadData()">📂 Φόρτωση Δεδομένων</button>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <div id="pdf-export-root"></div>
-
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <script>
-        let pieces = [];
-        const LOCAL_STORAGE_KEY = 'cutting_optimizer_state_v2';
-
-        function loadFromLocalStorage() {
-            const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            document.getElementById('sheetWidth').value = parsed.sheetWidth || '';
-            document.getElementById('sheetHeight').value = parsed.sheetHeight || '';
-            pieces = parsed.pieces || [];
-            updatePiecesListUI();
-            triggerRecalculation();
+        const pieces = [];
+        const PADDING = 10; // Περιθώριο ασφαλείας κατά την απεικόνιση
+        const STORAGE_KEY = 'cuttingOptimizationData';
+        
+        function validateInput(width, height, fieldName) {
+            if (!width || !height || width <= 0 || height <= 0) {
+                showError(`Εισάγετε έγκυρες διαστάσεις για ${fieldName}`);
+                return false;
+            }
+            return true;
         }
-
-        function saveToLocalStorage() {
-            const data = {
-                sheetWidth: document.getElementById('sheetWidth').value,
-                sheetHeight: document.getElementById('sheetHeight').value,
-                pieces: pieces
-            };
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+        
+        function addPiece() {
+            const width = parseFloat(document.getElementById('pieceWidth').value);
+            const height = parseFloat(document.getElementById('pieceHeight').value);
+            const quantity = parseInt(document.getElementById('pieceQuantity').value) || 1;
+            
+            if (!validateInput(width, height, 'κομμάτι')) {
+                return;
+            }
+            
+            if (quantity <= 0) {
+                showError('Η ποσότητα πρέπει να είναι μεγαλύτερη από 0');
+                return;
+            }
+            
+            const sheetWidth = parseFloat(document.getElementById('sheetWidth').value);
+            const sheetHeight = parseFloat(document.getElementById('sheetHeight').value);
+            
+            if (!sheetWidth || !sheetHeight) {
+                showError('Πρέπει πρώτα να καθορίσετε τις διαστάσεις του φύλλου');
+                return;
+            }
+            
+            if (width > sheetWidth || height > sheetHeight) {
+                if (!(width > sheetHeight || height > sheetWidth)) {
+                    showError('Το κομμάτι μπορεί να χωρέσει αν περιστραφεί');
+                    return;
+                }
+                showError('Το κομμάτι είναι μεγαλύτερο από το φύλλο');
+                return;
+            }
+            
+            pieces.push({
+                width: width,
+                height: height,
+                quantity: quantity,
+                id: Date.now()
+            });
+            
+            document.getElementById('pieceWidth').value = '';
+            document.getElementById('pieceHeight').value = '';
+            document.getElementById('pieceQuantity').value = '1';
+            
+            renderPieces();
+            calculateOptimization();
         }
-
-        function addPieceItem() {
-            const w = parseFloat(document.getElementById('pieceWidth').value);
-            const h = parseFloat(document.getElementById('pieceHeight').value);
-            const qty = parseInt(document.getElementById('pieceQty').value);
-            if (!w || !h) return alert("Εισάγετε διαστάσεις");
-            pieces.push({ id: Date.now(), width: w, height: h, qty: qty });
-            saveToLocalStorage();
-            updatePiecesListUI();
-            triggerRecalculation();
+        
+        function removePiece(id) {
+            const index = pieces.findIndex(p => p.id === id);
+            if (index > -1) {
+                pieces.splice(index, 1);
+                renderPieces();
+                calculateOptimization();
+            }
         }
-
-        function removePieceItem(id) {
-            pieces = pieces.filter(p => p.id !== id);
-            saveToLocalStorage();
-            updatePiecesListUI();
-            triggerRecalculation();
+        
+        function clearAllPieces() {
+            if (pieces.length === 0) {
+                showError('Δεν υπάρχουν κομμάτια για διαγραφή');
+                return;
+            }
+            if (confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε όλα τα κομμάτια;')) {
+                pieces.length = 0;
+                renderPieces();
+                document.getElementById('resultsContainer').style.display = 'none';
+            }
         }
-
-        function clearAllPiecesList() {
-            pieces = [];
-            saveToLocalStorage();
-            updatePiecesListUI();
-            triggerRecalculation();
-        }
-
-        function updatePiecesListUI() {
-            const container = document.getElementById('piecesContainer');
-            container.innerHTML = pieces.map((p, i) => `
+        
+        function renderPieces() {
+            const container = document.getElementById('piecesList');
+            
+            if (pieces.length === 0) {
+                container.innerHTML = '<div class="empty-state">Δεν υπάρχουν κομμάτια. Προσθέστε κομμάτια παραπάνω.</div>';
+                return;
+            }
+            
+            container.innerHTML = pieces.map((piece, index) => `
                 <div class="piece-item">
-                    <span>${p.width}x${p.height} (${p.qty}τμχ)</span>
-                    <button onclick="removePieceItem('${p.id}')">✕</button>
+                    <div class="piece-info">
+                        <div class="piece-label">Κομμάτι ${index + 1}</div>
+                        <div class="piece-dimensions">${piece.width} cm × ${piece.height} cm (Ποσότητα: ${piece.quantity})</div>
+                    </div>
+                    <button class="btn-danger" onclick="removePiece(${piece.id})">✕ Διαγραφή</button>
                 </div>
             `).join('');
         }
-
-        function triggerRecalculation() {
-            // Εδώ μπαίνει η λογική του SFFD που είχες
-            const sW = parseFloat(document.getElementById('sheetWidth').value);
-            const sH = parseFloat(document.getElementById('sheetHeight').value);
-            if (!sW || !sH || pieces.length === 0) return;
+        
+        function calculateOptimization() {
+            const sheetWidth = parseFloat(document.getElementById('sheetWidth').value);
+            const sheetHeight = parseFloat(document.getElementById('sheetHeight').value);
             
-            document.getElementById('metricSheets').textContent = "1";
-            document.getElementById('metricEfficiency').textContent = "85%";
-            document.getElementById('canvasOutputWrapper').innerHTML = "Σχέδιο κοπής έτοιμο...";
+            if (!sheetWidth || !sheetHeight || pieces.length === 0) {
+                document.getElementById('resultsContainer').style.display = 'none';
+                return;
+            }
+            
+            if (!validateInput(sheetWidth, sheetHeight, 'φύλλο')) {
+                return;
+            }
+            
+            const sheetArea = sheetWidth * sheetHeight;
+            
+            // Υπολογισμός συνολικής επιφάνειας κομματιών
+            let totalPiecesArea = 0;
+            pieces.forEach(piece => {
+                totalPiecesArea += (piece.width * piece.height * piece.quantity);
+            });
+            
+            // Υπολογισμός αριθμού φύλλων με αποτελεσματική τακτοποίηση
+            let sheetsNeeded = calculateSheetsNeeded(sheetWidth, sheetHeight);
+            
+            const totalUsedArea = sheetArea * sheetsNeeded;
+            const wasteArea = totalUsedArea - totalPiecesArea;
+            const efficiency = ((totalPiecesArea / totalUsedArea) * 100).toFixed(1);
+            
+            // Ενημέρωση αποτελεσμάτων
+            document.getElementById('totalSheetArea').textContent = sheetArea.toFixed(1) + ' cm²';
+            document.getElementById('totalPiecesArea').textContent = totalPiecesArea.toFixed(1) + ' cm²';
+            document.getElementById('wasteArea').textContent = Math.max(0, wasteArea).toFixed(1) + ' cm²';
+            document.getElementById('sheetsNeeded').textContent = sheetsNeeded;
+            document.getElementById('efficiency').textContent = efficiency + '%';
+            
+            document.getElementById('resultsContainer').style.display = 'block';
+            
+            // Σχεδίαση οπτικής αναπαράστασης όλων των φύλλων
+            drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded);
         }
-
-        document.addEventListener('DOMContentLoaded', loadFromLocalStorage);
-        function exportPDFReport() { alert("Η εξαγωγή θα ξεκινήσει..."); }
+        
+        function calculateSheetsNeeded(sheetWidth, sheetHeight) {
+            const sheetArea = sheetWidth * sheetHeight;
+            let totalArea = 0;
+            
+            pieces.forEach(piece => {
+                totalArea += (piece.width * piece.height * piece.quantity);
+            });
+            
+            // Υπολογισμός με περιθώριο ασφαλείας
+            return Math.ceil(totalArea / sheetArea);
+        }
+        
+        function drawAllSheetVisualizations(sheetWidth, sheetHeight, totalSheets) {
+            const container = document.getElementById('visualizationArea');
+            container.innerHTML = '';
+            
+            // Δημιουργία ενός canvas ανά φύλλο
+            for (let sheet = 0; sheet < totalSheets; sheet++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'canvas-wrapper';
+                
+                const label = document.createElement('div');
+                label.className = 'canvas-label';
+                label.textContent = `Φύλλο ${sheet + 1} από ${totalSheets}`;
+                
+                const canvas = document.createElement('canvas');
+                canvas.id = `cuttingCanvas-${sheet}`;
+                
+                wrapper.appendChild(label);
+                wrapper.appendChild(canvas);
+                container.appendChild(wrapper);
+                
+                drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheet);
+            }
+        }
+        
+        function drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheetIndex) {
+            const ctx = canvas.getContext('2d');
+            
+            // Προσδιορισμός κλίμακας για να χωρέσει το σχέδιο στο canvas
+            const maxCanvasWidth = 500;
+            const maxCanvasHeight = 400;
+            const scale = Math.min(maxCanvasWidth / sheetWidth, maxCanvasHeight / sheetHeight);
+            
+            canvas.width = sheetWidth * scale + 40;
+            canvas.height = sheetHeight * scale + 40;
+            
+            const startX = 20;
+            const startY = 20;
+            
+            // Σχεδίαση περιγράμματος φύλλου
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(startX, startY, sheetWidth * scale, sheetHeight * scale);
+            
+            // Χρώματα για διαφορετικά κομμάτια
+            const colors = [
+                '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
+            ];
+            
+            // Τακτοποίηση κομματιών με greedy packing για το τρέχον φύλλο
+            let x = startX + PADDING;
+            let y = startY + PADDING;
+            let pieceColorIndex = 0;
+            let itemsPlacedOnSheet = 0;
+            let remainingPieces = JSON.parse(JSON.stringify(pieces)); // Αντιγραφή αντικειμένων κομματιών
+            
+            for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
+                const piece = remainingPieces[pieceIdx];
+                let placed = 0;
+                
+                while (placed < piece.quantity) {
+                    const pieceWidth = piece.width * scale;
+                    const pieceHeight = piece.height * scale;
+                    
+                    // Έλεγχος αν το κομμάτι χωράει στο υπόλοιπο πλάτος
+                    if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
+                        // Μετακίνηση στη επόμενη γραμμή
+                        x = startX + PADDING;
+                        y += pieceHeight + PADDING;
+                    }
+                    
+                    // Αν ξεπεράσαμε το ύψος ή είμαστε σε διαφορετικό φύλλο, σταματάμε
+                    if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
+                        break;
+                    }
+                    
+                    // Σχεδίαση κομματιού
+                    ctx.fillStyle = colors[pieceColorIndex % colors.length];
+                    ctx.fillRect(x, y, pieceWidth, pieceHeight);
+                    
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, pieceWidth, pieceHeight);
+                    
+                    // Κείμενο με διαστάσεις (μόνο αν χωράει)
+                    if (pieceWidth > 40 && pieceHeight > 30) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(piece.width + 'x' + piece.height, x + pieceWidth / 2, y + pieceHeight / 2);
+                    }
+                    
+                    x += pieceWidth + PADDING;
+                    placed++;
+                    itemsPlacedOnSheet++;
+                }
+                
+                pieceColorIndex++;
+            }
+            
+            // Υπόμνημα
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('Σημείωση: Αυτή είναι μια προσεγγιστική αναπαράσταση της κοπής.', 10, canvas.height - 5);
+        }
+        
+        function showError(message) {
+            const container = document.getElementById('piecesList');
+            const error = document.createElement('div');
+            error.className = 'error';
+            error.textContent = message;
+            container.parentElement.appendChild(error);
+            setTimeout(() => error.remove(), 4000);
+        }
+        
+        function showSuccess(message) {
+            const container = document.getElementById('piecesList');
+            const success = document.createElement('div');
+            success.className = 'success';
+            success.textContent = message;
+            container.parentElement.appendChild(success);
+            setTimeout(() => success.remove(), 3000);
+        }
+        
+        function saveData() {
+            const data = {
+                sheetWidth: document.getElementById('sheetWidth').value,
+                sheetHeight: document.getElementById('sheetHeight').value,
+                materialType: document.getElementById('materialType').value,
+                pieces: pieces,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                showSuccess('Τα δεδομένα αποθηκεύτηκαν επιτυχώς στο browser');
+            } catch (e) {
+                showError('Σφάλμα κατά την αποθήκευση: ' + e.message);
+            }
+        }
+        
+        function loadData() {
+            try {
+                const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+                
+                if (!data) {
+                    showError('Δεν υπάρχουν αποθηκευμένα δεδομένα');
+                    return;
+                }
+                
+                document.getElementById('sheetWidth').value = data.sheetWidth || '';
+                document.getElementById('sheetHeight').value = data.sheetHeight || '';
+                document.getElementById('materialType').value = data.materialType || '';
+                
+                pieces.length = 0;
+                pieces.push(...data.pieces);
+                
+                renderPieces();
+                calculateOptimization();
+                showSuccess('Τα δεδομένα φορτώθηκαν επιτυχώς');
+            } catch (e) {
+                showError('Σφάλμα κατά τη φόρτωση: ' + e.message);
+            }
+        }
+        
+        function exportToPDF() {
+            const element = document.getElementById('resultsContainer');
+            const now = new Date();
+            const filename = `Κοπή_Υλικών_${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}.pdf`;
+            
+            const opt = {
+                margin: 10,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+            };
+            
+            html2pdf().set(opt).from(element).save();
+        }
+        
+        // Event listeners για real-time υπολογισμό
+        document.getElementById('sheetWidth').addEventListener('change', calculateOptimization);
+        document.getElementById('sheetHeight').addEventListener('change', calculateOptimization);
+        
+        // Enter key προσθήκη κομματιού
+        document.getElementById('pieceHeight').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addPiece();
+        });
+        
+        // Φόρτωση δεδομένων κατά την εκκίνηση
+        window.addEventListener('load', () => {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                const notification = document.createElement('div');
+                notification.className = 'success';
+                notification.textContent = 'Υπάρχουν αποθηκευμένα δεδομένα. Πατήστε "Φόρτωση Δεδομένων" για να τα επαναφέρετε.';
+                notification.style.position = 'fixed';
+                notification.style.top = '20px';
+                notification.style.right = '20px';
+                notification.style.zIndex = '1000';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 5000);
+            }
+        });
     </script>
 </body>
 </html>
