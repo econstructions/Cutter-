@@ -25,7 +25,7 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 900px;
+            max-width: 1200px;
             width: 100%;
             padding: 40px;
         }
@@ -95,7 +95,8 @@
             font-size: 14px;
         }
         
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"] {
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
@@ -103,7 +104,8 @@
             transition: border-color 0.3s;
         }
         
-        input[type="number"]:focus {
+        input[type="number"]:focus,
+        input[type="text"]:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -274,6 +276,30 @@
             font-size: 13px;
         }
         
+        .visualization-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .visualization-title {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        canvas {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+        
         @media (max-width: 600px) {
             .input-group {
                 grid-template-columns: 1fr;
@@ -292,7 +318,7 @@
 <body>
     <div class="container">
         <h1>🔄 Αριστοποίηση Κοπής Υλικών</h1>
-        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη</p>
+        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με οπτική αναπαράσταση</p>
         
         <div class="section">
             <div class="section-title">Διαστάσεις Φύλλου</div>
@@ -308,7 +334,7 @@
             </div>
             <div class="form-field" style="margin-top: 15px;">
                 <label for="materialType">Τύπος Υλικού</label>
-                <input type="text" id="materialType" placeholder="π.χ. Γυψοσανίδα, Ξύλο, κλπ." style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                <input type="text" id="materialType" placeholder="π.χ. Γυψοσανίδα, Ξύλο, κλπ.">
             </div>
         </div>
         
@@ -371,11 +397,17 @@
                     <div class="efficiency-value" id="efficiency">0%</div>
                 </div>
             </div>
+            
+            <div class="visualization-container">
+                <div class="visualization-title">🖼️ Οπτική Αναπαράσταση Κοπών</div>
+                <canvas id="cuttingCanvas"></canvas>
+            </div>
         </div>
     </div>
     
     <script>
         const pieces = [];
+        const PADDING = 10; // Περιθώριο ασφαλείας κατά την απεικόνιση
         
         function addPiece() {
             const width = parseFloat(document.getElementById('pieceWidth').value);
@@ -484,6 +516,9 @@
             document.getElementById('efficiency').textContent = efficiency + '%';
             
             document.getElementById('resultsContainer').style.display = 'block';
+            
+            // Σχεδίαση οπτικής αναπαράστασης
+            drawCuttingVisualization(sheetWidth, sheetHeight);
         }
         
         function calculateSheetsNeeded(sheetWidth, sheetHeight) {
@@ -496,6 +531,82 @@
             
             // Απλή εκτίμηση με περιθώριο ασφαλείας
             return Math.ceil(totalArea / sheetArea);
+        }
+        
+        function drawCuttingVisualization(sheetWidth, sheetHeight) {
+            const canvas = document.getElementById('cuttingCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Προσδιορισμός κλίμακας για να χωρέσει το σχέδιο στο canvas
+            const maxCanvasWidth = 500;
+            const maxCanvasHeight = 400;
+            const scale = Math.min(maxCanvasWidth / sheetWidth, maxCanvasHeight / sheetHeight);
+            
+            canvas.width = sheetWidth * scale + 40;
+            canvas.height = sheetHeight * scale + 40;
+            
+            const startX = 20;
+            const startY = 20;
+            
+            // Σχεδίαση περιγράμματος φύλλου
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(startX, startY, sheetWidth * scale, sheetHeight * scale);
+            
+            // Χρώματα για διαφορετικά κομμάτια
+            const colors = [
+                '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
+            ];
+            
+            // Απλή τακτοποίηση κομματιών
+            let x = startX + PADDING;
+            let y = startY + PADDING;
+            let pieceColorIndex = 0;
+            
+            pieces.forEach(piece => {
+                for (let i = 0; i < piece.quantity; i++) {
+                    const pieceWidth = piece.width * scale;
+                    const pieceHeight = piece.height * scale;
+                    
+                    // Έλεγχος αν το κομμάτι χωράει στο υπόλοιπο πλάτος
+                    if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
+                        // Μετακίνηση στη επόμενη γραμμή
+                        x = startX + PADDING;
+                        y += pieceHeight + PADDING;
+                    }
+                    
+                    // Αν ξεπεράσαμε το ύψος, δεν σχεδιάζουμε
+                    if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
+                        break;
+                    }
+                    
+                    // Σχεδίαση κομματιού
+                    ctx.fillStyle = colors[pieceColorIndex % colors.length];
+                    ctx.fillRect(x, y, pieceWidth, pieceHeight);
+                    
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, pieceWidth, pieceHeight);
+                    
+                    // Κείμενο με διαστάσεις (μόνο αν χωράει)
+                    if (pieceWidth > 40 && pieceHeight > 30) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(piece.width + 'x' + piece.height, x + pieceWidth / 2, y + pieceHeight / 2);
+                    }
+                    
+                    x += pieceWidth + PADDING;
+                }
+                pieceColorIndex++;
+            });
+            
+            // Υπόμνημα
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('Σημείωση: Αυτή είναι μια προσεγγιστική αναπαράσταση της κοπής.', 10, canvas.height - 5);
         }
         
         function showError(message) {
