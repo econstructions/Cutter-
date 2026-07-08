@@ -476,11 +476,11 @@
                 return;
             }
             
-            if (width > sheetWidth || height > sheetHeight) {
-                if (!(width > sheetHeight || height > sheetWidth)) {
-                    showError('Το κομμάτι μπορεί να χωρέσει αν περιστραφεί');
-                    return;
-                }
+            // Ελέγχος εάν το κομμάτι χωράει στο φύλλο (ευθέως ή περιστραμμένο)
+            const fitsNormal = width <= sheetWidth && height <= sheetHeight;
+            const fitsRotated = width <= sheetHeight && height <= sheetWidth;
+            
+            if (!fitsNormal && !fitsRotated) {
                 showError('Το κομμάτι είναι μεγαλύτερο από το φύλλο');
                 return;
             }
@@ -498,6 +498,7 @@
             
             renderPieces();
             calculateOptimization();
+            showSuccess('Κομμάτι προστέθηκε επιτυχώς');
         }
         
         function removePiece(id) {
@@ -506,6 +507,7 @@
                 pieces.splice(index, 1);
                 renderPieces();
                 calculateOptimization();
+                showSuccess('Κομμάτι διαγράφηκε');
             }
         }
         
@@ -518,6 +520,7 @@
                 pieces.length = 0;
                 renderPieces();
                 document.getElementById('resultsContainer').style.display = 'none';
+                showSuccess('Όλα τα κομμάτια διαγράφηκαν');
             }
         }
         
@@ -589,7 +592,6 @@
                 totalArea += (piece.width * piece.height * piece.quantity);
             });
             
-            // Υπολογισμός με περιθώριο ασφαλείας
             return Math.ceil(totalArea / sheetArea);
         }
         
@@ -641,57 +643,80 @@
                 '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
             ];
             
-            // Τακτοποίηση κομματιών με greedy packing για το τρέχον φύλλο
-            let x = startX + PADDING;
-            let y = startY + PADDING;
-            let pieceColorIndex = 0;
-            let itemsPlacedOnSheet = 0;
-            let remainingPieces = JSON.parse(JSON.stringify(pieces)); // Αντιγραφή αντικειμένων κομματιών
+            // Δημιουργία αντιγράφου των κομματιών για εκχώρηση σε φύλλα
+            let remainingPieces = JSON.parse(JSON.stringify(pieces));
+            let piecesOnSheet = [];
+            let remainingArea = sheetWidth * sheetHeight;
             
+            // Τακτοποίηση κομματιών σε φύλλα (greedy packing)
             for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
                 const piece = remainingPieces[pieceIdx];
                 let placed = 0;
                 
                 while (placed < piece.quantity) {
-                    const pieceWidth = piece.width * scale;
-                    const pieceHeight = piece.height * scale;
+                    const pieceArea = piece.width * piece.height;
                     
-                    // Έλεγχος αν το κομμάτι χωράει στο υπόλοιπο πλάτος
-                    if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
-                        // Μετακίνηση στη επόμενη γραμμή
-                        x = startX + PADDING;
-                        y += pieceHeight + PADDING;
-                    }
-                    
-                    // Αν ξεπεράσαμε το ύψος ή είμαστε σε διαφορετικό φύλλο, σταματάμε
-                    if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
+                    if (remainingArea >= pieceArea) {
+                        piecesOnSheet.push({
+                            ...piece,
+                            index: piecesOnSheet.length,
+                            colorIndex: pieceIdx
+                        });
+                        remainingArea -= pieceArea;
+                        placed++;
+                    } else {
                         break;
                     }
-                    
-                    // Σχεδίαση κομματιού
-                    ctx.fillStyle = colors[pieceColorIndex % colors.length];
-                    ctx.fillRect(x, y, pieceWidth, pieceHeight);
-                    
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(x, y, pieceWidth, pieceHeight);
-                    
-                    // Κείμενο με διαστάσεις (μόνο αν χωράει)
-                    if (pieceWidth > 40 && pieceHeight > 30) {
-                        ctx.fillStyle = '#fff';
-                        ctx.font = 'bold 12px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(piece.width + 'x' + piece.height, x + pieceWidth / 2, y + pieceHeight / 2);
-                    }
-                    
-                    x += pieceWidth + PADDING;
-                    placed++;
-                    itemsPlacedOnSheet++;
                 }
                 
-                pieceColorIndex++;
+                if (placed < piece.quantity) {
+                    // Υπόλοιπα κομμάτια χρειάζονται νέο φύλλο - σταματάμε για αυτό το φύλλο
+                    break;
+                }
             }
+            
+            // Σχεδίαση κομματιών με greedy line packing
+            let x = startX + PADDING;
+            let y = startY + PADDING;
+            let maxHeightInLine = 0;
+            
+            piecesOnSheet.forEach((item, index) => {
+                const pieceWidth = item.width * scale;
+                const pieceHeight = item.height * scale;
+                
+                // Έλεγχος αν το κομμάτι χωράει στο υπόλοιπο πλάτος
+                if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
+                    // Μετακίνηση στη επόμενη γραμμή
+                    x = startX + PADDING;
+                    y += maxHeightInLine + PADDING;
+                    maxHeightInLine = 0;
+                }
+                
+                // Αν ξεπεράσαμε το ύψος, δεν σχεδιάζουμε
+                if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
+                    return;
+                }
+                
+                // Σχεδίαση κομματιού
+                ctx.fillStyle = colors[item.colorIndex % colors.length];
+                ctx.fillRect(x, y, pieceWidth, pieceHeight);
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, pieceWidth, pieceHeight);
+                
+                // Κείμενο με διαστάσεις (μόνο αν χωράει)
+                if (pieceWidth > 40 && pieceHeight > 30) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.width + 'x' + item.height, x + pieceWidth / 2, y + pieceHeight / 2);
+                }
+                
+                x += pieceWidth + PADDING;
+                maxHeightInLine = Math.max(maxHeightInLine, pieceHeight);
+            });
             
             // Υπόμνημα
             ctx.fillStyle = '#666';
@@ -729,7 +754,7 @@
             
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-                showSuccess('Τα δεδομένα αποθηκεύτηκαν επιτυχώς στο browser');
+                showSuccess('Τα δεδομένα αποθηκεύτηκαν επιτυχώς');
             } catch (e) {
                 showError('Σφάλμα κατά την αποθήκευση: ' + e.message);
             }
@@ -760,19 +785,55 @@
         }
         
         function exportToPDF() {
-            const element = document.getElementById('resultsContainer');
+            const element = document.querySelector('.results');
+            if (!element) {
+                showError('Δεν υπάρχουν αποτελέσματα για εξαγωγή');
+                return;
+            }
+            
             const now = new Date();
             const filename = `Κοπή_Υλικών_${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}.pdf`;
+            
+            // Δημιουργία ενός δοχείου με όλα τα απαιτούμενα στοιχεία
+            const exportContainer = document.createElement('div');
+            exportContainer.style.padding = '20px';
+            
+            // Πρόσθεση τίτλου
+            const title = document.createElement('h2');
+            title.textContent = 'Αριστοποίηση Κοπής Υλικών';
+            exportContainer.appendChild(title);
+            
+            // Πρόσθεση πληροφοριών φύλλου
+            const info = document.createElement('p');
+            const sheetWidth = document.getElementById('sheetWidth').value;
+            const sheetHeight = document.getElementById('sheetHeight').value;
+            const materialType = document.getElementById('materialType').value;
+            info.innerHTML = `<strong>Φύλλο:</strong> ${sheetWidth} cm × ${sheetHeight} cm | <strong>Υλικό:</strong> ${materialType}<br/>`;
+            exportContainer.appendChild(info);
+            
+            // Πρόσθεση αποτελεσμάτων
+            exportContainer.appendChild(element.cloneNode(true));
+            
+            // Πρόσθεση visualizations
+            const vizContainer = document.getElementById('visualizationArea');
+            if (vizContainer && vizContainer.children.length > 0) {
+                const vizTitle = document.createElement('h3');
+                vizTitle.textContent = 'Οπτική Αναπαράσταση';
+                exportContainer.appendChild(vizTitle);
+                exportContainer.appendChild(vizContainer.cloneNode(true));
+            }
             
             const opt = {
                 margin: 10,
                 filename: filename,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
+                html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
             };
             
-            html2pdf().set(opt).from(element).save();
+            html2pdf().set(opt).from(exportContainer).save().catch(() => {
+                showError('Σφάλμα κατά την εξαγωγή PDF');
+            });
         }
         
         // Event listeners για real-time υπολογισμό
