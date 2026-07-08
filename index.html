@@ -443,7 +443,7 @@
     
     <script>
         const pieces = [];
-        const PADDING = 10; // Περιθώριο ασφαλείας κατά την απεικόνιση
+        const PADDING = 10;
         const STORAGE_KEY = 'cuttingOptimizationData';
         
         function validateInput(width, height, fieldName) {
@@ -476,7 +476,6 @@
                 return;
             }
             
-            // Ελέγχος εάν το κομμάτι χωράει στο φύλλο (ευθέως ή περιστραμμένο)
             const fitsNormal = width <= sheetWidth && height <= sheetHeight;
             const fitsRotated = width <= sheetHeight && height <= sheetWidth;
             
@@ -558,20 +557,17 @@
             
             const sheetArea = sheetWidth * sheetHeight;
             
-            // Υπολογισμός συνολικής επιφάνειας κομματιών
             let totalPiecesArea = 0;
             pieces.forEach(piece => {
                 totalPiecesArea += (piece.width * piece.height * piece.quantity);
             });
             
-            // Υπολογισμός αριθμού φύλλων με αποτελεσματική τακτοποίηση
             let sheetsNeeded = calculateSheetsNeeded(sheetWidth, sheetHeight);
             
             const totalUsedArea = sheetArea * sheetsNeeded;
             const wasteArea = totalUsedArea - totalPiecesArea;
             const efficiency = ((totalPiecesArea / totalUsedArea) * 100).toFixed(1);
             
-            // Ενημέρωση αποτελεσμάτων
             document.getElementById('totalSheetArea').textContent = sheetArea.toFixed(1) + ' cm²';
             document.getElementById('totalPiecesArea').textContent = totalPiecesArea.toFixed(1) + ' cm²';
             document.getElementById('wasteArea').textContent = Math.max(0, wasteArea).toFixed(1) + ' cm²';
@@ -580,7 +576,6 @@
             
             document.getElementById('resultsContainer').style.display = 'block';
             
-            // Σχεδίαση οπτικής αναπαράστασης όλων των φύλλων
             drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded);
         }
         
@@ -599,7 +594,8 @@
             const container = document.getElementById('visualizationArea');
             container.innerHTML = '';
             
-            // Δημιουργία ενός canvas ανά φύλλο
+            const allocation = allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets);
+            
             for (let sheet = 0; sheet < totalSheets; sheet++) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'canvas-wrapper';
@@ -615,14 +611,45 @@
                 wrapper.appendChild(canvas);
                 container.appendChild(wrapper);
                 
-                drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheet);
+                drawCuttingVisualization(canvas, sheetWidth, sheetHeight, allocation[sheet] || []);
             }
         }
         
-        function drawCuttingVisualization(canvas, sheetWidth, sheetHeight, sheetIndex) {
+        function allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets) {
+            const allocation = Array(totalSheets).fill(null).map(() => []);
+            const sheetArea = sheetWidth * sheetHeight;
+            let remainingPieces = JSON.parse(JSON.stringify(pieces));
+            let currentSheetIndex = 0;
+            let remainingArea = sheetArea;
+            
+            for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
+                const piece = remainingPieces[pieceIdx];
+                let quantityPlaced = 0;
+                
+                while (quantityPlaced < piece.quantity && currentSheetIndex < totalSheets) {
+                    const pieceArea = piece.width * piece.height;
+                    
+                    if (remainingArea >= pieceArea) {
+                        allocation[currentSheetIndex].push({
+                            ...piece,
+                            quantity: 1,
+                            colorIndex: pieceIdx
+                        });
+                        remainingArea -= pieceArea;
+                        quantityPlaced++;
+                    } else {
+                        currentSheetIndex++;
+                        remainingArea = sheetArea;
+                    }
+                }
+            }
+            
+            return allocation;
+        }
+        
+        function drawCuttingVisualization(canvas, sheetWidth, sheetHeight, piecesOnSheet) {
             const ctx = canvas.getContext('2d');
             
-            // Προσδιορισμός κλίμακας για να χωρέσει το σχέδιο στο canvas
             const maxCanvasWidth = 500;
             const maxCanvasHeight = 400;
             const scale = Math.min(maxCanvasWidth / sheetWidth, maxCanvasHeight / sheetHeight);
@@ -633,71 +660,32 @@
             const startX = 20;
             const startY = 20;
             
-            // Σχεδίαση περιγράμματος φύλλου
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 3;
             ctx.strokeRect(startX, startY, sheetWidth * scale, sheetHeight * scale);
             
-            // Χρώματα για διαφορετικά κομμάτια
             const colors = [
                 '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
             ];
             
-            // Δημιουργία αντιγράφου των κομματιών για εκχώρηση σε φύλλα
-            let remainingPieces = JSON.parse(JSON.stringify(pieces));
-            let piecesOnSheet = [];
-            let remainingArea = sheetWidth * sheetHeight;
-            
-            // Τακτοποίηση κομματιών σε φύλλα (greedy packing)
-            for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
-                const piece = remainingPieces[pieceIdx];
-                let placed = 0;
-                
-                while (placed < piece.quantity) {
-                    const pieceArea = piece.width * piece.height;
-                    
-                    if (remainingArea >= pieceArea) {
-                        piecesOnSheet.push({
-                            ...piece,
-                            index: piecesOnSheet.length,
-                            colorIndex: pieceIdx
-                        });
-                        remainingArea -= pieceArea;
-                        placed++;
-                    } else {
-                        break;
-                    }
-                }
-                
-                if (placed < piece.quantity) {
-                    // Υπόλοιπα κομμάτια χρειάζονται νέο φύλλο - σταματάμε για αυτό το φύλλο
-                    break;
-                }
-            }
-            
-            // Σχεδίαση κομματιών με greedy line packing
             let x = startX + PADDING;
             let y = startY + PADDING;
             let maxHeightInLine = 0;
             
-            piecesOnSheet.forEach((item, index) => {
+            piecesOnSheet.forEach((item) => {
                 const pieceWidth = item.width * scale;
                 const pieceHeight = item.height * scale;
                 
-                // Έλεγχος αν το κομμάτι χωράει στο υπόλοιπο πλάτος
                 if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
-                    // Μετακίνηση στη επόμενη γραμμή
                     x = startX + PADDING;
                     y += maxHeightInLine + PADDING;
                     maxHeightInLine = 0;
                 }
                 
-                // Αν ξεπεράσαμε το ύψος, δεν σχεδιάζουμε
                 if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
                     return;
                 }
                 
-                // Σχεδίαση κομματιού
                 ctx.fillStyle = colors[item.colorIndex % colors.length];
                 ctx.fillRect(x, y, pieceWidth, pieceHeight);
                 
@@ -705,7 +693,6 @@
                 ctx.lineWidth = 2;
                 ctx.strokeRect(x, y, pieceWidth, pieceHeight);
                 
-                // Κείμενο με διαστάσεις (μόνο αν χωράει)
                 if (pieceWidth > 40 && pieceHeight > 30) {
                     ctx.fillStyle = '#fff';
                     ctx.font = 'bold 12px Arial';
@@ -718,7 +705,6 @@
                 maxHeightInLine = Math.max(maxHeightInLine, pieceHeight);
             });
             
-            // Υπόμνημα
             ctx.fillStyle = '#666';
             ctx.font = '12px Arial';
             ctx.textAlign = 'left';
@@ -794,58 +780,60 @@
             const now = new Date();
             const filename = `Κοπή_Υλικών_${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}.pdf`;
             
-            // Δημιουργία ενός δοχείου με όλα τα απαιτούμενα στοιχεία
             const exportContainer = document.createElement('div');
             exportContainer.style.padding = '20px';
+            exportContainer.style.backgroundColor = 'white';
             
-            // Πρόσθεση τίτλου
             const title = document.createElement('h2');
             title.textContent = 'Αριστοποίηση Κοπής Υλικών';
+            title.style.marginBottom = '15px';
             exportContainer.appendChild(title);
             
-            // Πρόσθεση πληροφοριών φύλλου
             const info = document.createElement('p');
             const sheetWidth = document.getElementById('sheetWidth').value;
             const sheetHeight = document.getElementById('sheetHeight').value;
             const materialType = document.getElementById('materialType').value;
             info.innerHTML = `<strong>Φύλλο:</strong> ${sheetWidth} cm × ${sheetHeight} cm | <strong>Υλικό:</strong> ${materialType}<br/>`;
+            info.style.marginBottom = '20px';
             exportContainer.appendChild(info);
             
-            // Πρόσθεση αποτελεσμάτων
-            exportContainer.appendChild(element.cloneNode(true));
+            const resultsClone = element.cloneNode(true);
+            resultsClone.style.pageBreakInside = 'avoid';
+            exportContainer.appendChild(resultsClone);
             
-            // Πρόσθεση visualizations
             const vizContainer = document.getElementById('visualizationArea');
             if (vizContainer && vizContainer.children.length > 0) {
                 const vizTitle = document.createElement('h3');
                 vizTitle.textContent = 'Οπτική Αναπαράσταση';
+                vizTitle.style.marginTop = '30px';
+                vizTitle.style.marginBottom = '15px';
                 exportContainer.appendChild(vizTitle);
-                exportContainer.appendChild(vizContainer.cloneNode(true));
+                
+                const vizClone = vizContainer.cloneNode(true);
+                vizClone.style.pageBreakInside = 'avoid';
+                exportContainer.appendChild(vizClone);
             }
             
             const opt = {
-                margin: 10,
+                margin: [10, 10, 10, 10],
                 filename: filename,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
                 jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
             };
             
-            html2pdf().set(opt).from(exportContainer).save().catch(() => {
-                showError('Σφάλμα κατά την εξαγωγή PDF');
+            html2pdf().set(opt).from(exportContainer).save().catch((err) => {
+                showError('Σφάλμα κατά την εξαγωγή PDF: ' + err.message);
             });
         }
         
-        // Event listeners για real-time υπολογισμό
         document.getElementById('sheetWidth').addEventListener('change', calculateOptimization);
         document.getElementById('sheetHeight').addEventListener('change', calculateOptimization);
         
-        // Enter key προσθήκη κομματιού
         document.getElementById('pieceHeight').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') addPiece();
         });
         
-        // Φόρτωση δεδομένων κατά την εκκίνηση
         window.addEventListener('load', () => {
             const savedData = localStorage.getItem(STORAGE_KEY);
             if (savedData) {
