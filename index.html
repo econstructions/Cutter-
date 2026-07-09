@@ -358,7 +358,7 @@
 <body>
     <div class="container">
         <h1>🔄 Αριστοποίηση Κοπής Υλικών</h1>
-        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με οπτική αναπαράσταση όλων των φύλλων</p>
+        <p class="subtitle">Υπολογισμός βέλτιστης κοπής για ελάχιστη σπατάλη με ακριβή οπτική αναπαράσταση όλων των φύλλων</p>
         
         <div class="section">
             <div class="section-title">Διαστάσεις Φύλλου</div>
@@ -662,15 +662,14 @@
                 const piece = piecesToPlace[pieceIdx];
                 let placed = false;
                 
-                for (let sheetIdx = 0; sheetIdx < totalSheets && !placed; sheetIdx++) {
+                for (let sheetIdx = 0; sheetIdx < allocation.length && !placed; sheetIdx++) {
                     placed = placeOnSheet(allocation[sheetIdx], piece, sheetWidth, sheetHeight);
                 }
                 
                 if (!placed) {
-                    if (allocation.length < totalSheets + 1) {
-                        allocation.push([]);
-                        placeOnSheet(allocation[allocation.length - 1], piece, sheetWidth, sheetHeight);
-                    }
+                    const newSheet = [];
+                    placeOnSheet(newSheet, piece, sheetWidth, sheetHeight);
+                    allocation.push(newSheet);
                 }
             }
             
@@ -739,7 +738,7 @@
             const container = document.getElementById('visualizationArea');
             container.innerHTML = '';
             
-            for (let sheet = 0; sheet < Math.min(allocation.length, totalSheets); sheet++) {
+            for (let sheet = 0; sheet < allocation.length; sheet++) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'canvas-wrapper';
                 
