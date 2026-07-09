@@ -449,12 +449,14 @@
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <script>
         const pieces = [];
         const PADDING = 10;
         const STORAGE_KEY = 'cuttingOptimizationData';
         let visualizationGenerated = false;
+        let currentAllocation = null;
         
         function validateInput(width, height, fieldName) {
             if (!width || !height || width <= 0 || height <= 0) {
@@ -530,6 +532,7 @@
                 renderPieces();
                 document.getElementById('resultsContainer').style.display = 'none';
                 visualizationGenerated = false;
+                currentAllocation = null;
                 document.getElementById('generateVisualizationBtn').style.display = 'none';
                 showSuccess('Όλα τα κομμάτια διαγράφηκαν');
             }
@@ -562,6 +565,7 @@
                 document.getElementById('generateVisualizationBtn').style.display = 'none';
                 document.getElementById('resultsContainer').style.display = 'none';
                 visualizationGenerated = false;
+                currentAllocation = null;
                 return;
             }
             
@@ -606,7 +610,8 @@
             
             document.getElementById('resultsContainer').style.display = 'block';
             
-            drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded);
+            currentAllocation = allocatePiecesToSheets(sheetWidth, sheetHeight, sheetsNeeded);
+            drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded, currentAllocation);
         }
         
         function generateVisualization() {
@@ -626,11 +631,106 @@
             return Math.ceil(totalArea / sheetArea);
         }
         
-        function drawAllSheetVisualizations(sheetWidth, sheetHeight, totalSheets) {
+        function allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets) {
+            const allocation = Array(totalSheets).fill(null).map(() => []);
+            const sheetArea = sheetWidth * sheetHeight;
+            
+            let piecesToPlace = [];
+            pieces.forEach((piece, idx) => {
+                for (let i = 0; i < piece.quantity; i++) {
+                    piecesToPlace.push({
+                        width: piece.width,
+                        height: piece.height,
+                        colorIndex: idx,
+                        originalId: piece.id
+                    });
+                }
+            });
+            
+            piecesToPlace.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+            
+            for (let sheetIdx = 0; sheetIdx < totalSheets; sheetIdx++) {
+                allocation[sheetIdx] = [];
+                let remainingArea = sheetArea;
+                
+                for (let pieceIdx = piecesToPlace.length - 1; pieceIdx >= 0; pieceIdx--) {
+                    const piece = piecesToPlace[pieceIdx];
+                    const pieceArea = piece.width * piece.height;
+                    
+                    if (pieceArea <= remainingArea) {
+                        const placed = placeOnSheet(allocation[sheetIdx], piece, sheetWidth, sheetHeight);
+                        if (placed) {
+                            remainingArea -= pieceArea;
+                            piecesToPlace.splice(pieceIdx, 1);
+                        }
+                    }
+                }
+            }
+            
+            return allocation;
+        }
+        
+        function placeOnSheet(sheetPieces, piece, sheetWidth, sheetHeight) {
+            const orientations = [
+                { w: piece.width, h: piece.height },
+                { w: piece.height, h: piece.width }
+            ];
+            
+            for (let orientation of orientations) {
+                const positions = findBestPosition(sheetPieces, orientation.w, orientation.h, sheetWidth, sheetHeight);
+                if (positions) {
+                    sheetPieces.push({
+                        ...piece,
+                        width: orientation.w,
+                        height: orientation.h,
+                        x: positions.x,
+                        y: positions.y
+                    });
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function findBestPosition(sheetPieces, pieceWidth, pieceHeight, sheetWidth, sheetHeight) {
+            const candidates = [
+                { x: PADDING, y: PADDING }
+            ];
+            
+            sheetPieces.forEach(placed => {
+                candidates.push({ x: placed.x + placed.width + PADDING, y: placed.y });
+                candidates.push({ x: placed.x, y: placed.y + placed.height + PADDING });
+            });
+            
+            for (let candidate of candidates) {
+                if (candidate.x + pieceWidth <= sheetWidth - PADDING && 
+                    candidate.y + pieceHeight <= sheetHeight - PADDING) {
+                    
+                    let overlaps = false;
+                    for (let placed of sheetPieces) {
+                        if (rectsIntersect(candidate.x, candidate.y, pieceWidth, pieceHeight,
+                                         placed.x, placed.y, placed.width, placed.height, PADDING)) {
+                            overlaps = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!overlaps) {
+                        return candidate;
+                    }
+                }
+            }
+            return null;
+        }
+        
+        function rectsIntersect(x1, y1, w1, h1, x2, y2, w2, h2, padding) {
+            return !(x1 + w1 + padding <= x2 || x2 + w2 + padding <= x1 ||
+                     y1 + h1 + padding <= y2 || y2 + h2 + padding <= y1);
+        }
+        
+        function drawAllSheetVisualizations(sheetWidth, sheetHeight, totalSheets, allocation) {
             const container = document.getElementById('visualizationArea');
             container.innerHTML = '';
-            
-            const allocation = allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets);
             
             for (let sheet = 0; sheet < totalSheets; sheet++) {
                 const wrapper = document.createElement('div');
@@ -649,38 +749,6 @@
                 
                 drawCuttingVisualization(canvas, sheetWidth, sheetHeight, allocation[sheet] || []);
             }
-        }
-        
-        function allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets) {
-            const allocation = Array(totalSheets).fill(null).map(() => []);
-            const sheetArea = sheetWidth * sheetHeight;
-            let remainingPieces = JSON.parse(JSON.stringify(pieces));
-            let currentSheetIndex = 0;
-            let remainingArea = sheetArea;
-            
-            for (let pieceIdx = 0; pieceIdx < remainingPieces.length; pieceIdx++) {
-                const piece = remainingPieces[pieceIdx];
-                let quantityPlaced = 0;
-                
-                while (quantityPlaced < piece.quantity && currentSheetIndex < totalSheets) {
-                    const pieceArea = piece.width * piece.height;
-                    
-                    if (remainingArea >= pieceArea) {
-                        allocation[currentSheetIndex].push({
-                            ...piece,
-                            quantity: 1,
-                            colorIndex: pieceIdx
-                        });
-                        remainingArea -= pieceArea;
-                        quantityPlaced++;
-                    } else {
-                        currentSheetIndex++;
-                        remainingArea = sheetArea;
-                    }
-                }
-            }
-            
-            return allocation;
         }
         
         function drawCuttingVisualization(canvas, sheetWidth, sheetHeight, piecesOnSheet) {
@@ -707,23 +775,11 @@
                 '#667eea', '#764ba2', '#f093fb', '#4ade80', '#fbbf24', '#f87171', '#06b6d4'
             ];
             
-            let x = startX + PADDING;
-            let y = startY + PADDING;
-            let maxHeightInLine = 0;
-            
             piecesOnSheet.forEach((item) => {
                 const pieceWidth = item.width * scale;
                 const pieceHeight = item.height * scale;
-                
-                if (x + pieceWidth > startX + sheetWidth * scale - PADDING) {
-                    x = startX + PADDING;
-                    y += maxHeightInLine + PADDING;
-                    maxHeightInLine = 0;
-                }
-                
-                if (y + pieceHeight > startY + sheetHeight * scale - PADDING) {
-                    return;
-                }
+                const x = startX + (item.x || 0) * scale;
+                const y = startY + (item.y || 0) * scale;
                 
                 ctx.fillStyle = colors[item.colorIndex % colors.length];
                 ctx.fillRect(x, y, pieceWidth, pieceHeight);
@@ -739,9 +795,6 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillText(item.width + 'x' + item.height, x + pieceWidth / 2, y + pieceHeight / 2);
                 }
-                
-                x += pieceWidth + PADDING;
-                maxHeightInLine = Math.max(maxHeightInLine, pieceHeight);
             });
             
             ctx.fillStyle = '#666';
@@ -810,65 +863,90 @@
         }
         
         function exportToPDF() {
-            if (!visualizationGenerated) {
+            if (!visualizationGenerated || !currentAllocation) {
                 showError('Δημιουργήστε πρώτα την οπτικοποίηση πριν εξάγετε σε PDF');
                 return;
             }
             
-            const element = document.querySelector('.results');
-            if (!element) {
-                showError('Δεν υπάρχουν αποτελέσματα για εξαγωγή');
-                return;
-            }
-            
-            const now = new Date();
-            const filename = `Κοπή_Υλικών_${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}.pdf`;
-            
-            const exportContainer = document.createElement('div');
-            exportContainer.style.padding = '20px';
-            exportContainer.style.backgroundColor = 'white';
-            
-            const title = document.createElement('h2');
-            title.textContent = 'Αριστοποίηση Κοπής Υλικών';
-            title.style.marginBottom = '15px';
-            exportContainer.appendChild(title);
-            
-            const info = document.createElement('p');
-            const sheetWidth = document.getElementById('sheetWidth').value;
-            const sheetHeight = document.getElementById('sheetHeight').value;
-            const materialType = document.getElementById('materialType').value;
-            info.innerHTML = `<strong>Φύλλο:</strong> ${sheetWidth} cm × ${sheetHeight} cm | <strong>Υλικό:</strong> ${materialType}<br/>`;
-            info.style.marginBottom = '20px';
-            exportContainer.appendChild(info);
-            
-            const resultsClone = element.cloneNode(true);
-            resultsClone.style.pageBreakInside = 'avoid';
-            exportContainer.appendChild(resultsClone);
-            
-            const vizContainer = document.getElementById('visualizationArea');
-            if (vizContainer && vizContainer.children.length > 0) {
-                const vizTitle = document.createElement('h3');
-                vizTitle.textContent = 'Οπτική Αναπαράσταση';
-                vizTitle.style.marginTop = '30px';
-                vizTitle.style.marginBottom = '15px';
-                exportContainer.appendChild(vizTitle);
+            try {
+                const now = new Date();
+                const filename = `Κοπή_Υλικών_${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}.pdf`;
                 
-                const vizClone = vizContainer.cloneNode(true);
-                vizClone.style.pageBreakInside = 'avoid';
-                exportContainer.appendChild(vizClone);
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                let yPosition = 15;
+                
+                doc.setFontSize(16);
+                doc.text('Αριστοποίηση Κοπής Υλικών', 15, yPosition);
+                yPosition += 10;
+                
+                doc.setFontSize(11);
+                const sheetWidth = document.getElementById('sheetWidth').value;
+                const sheetHeight = document.getElementById('sheetHeight').value;
+                const materialType = document.getElementById('materialType').value;
+                doc.text(`Φύλλο: ${sheetWidth} cm × ${sheetHeight} cm | Υλικό: ${materialType}`, 15, yPosition);
+                yPosition += 10;
+                
+                const resultsSection = document.querySelector('.results');
+                if (resultsSection) {
+                    const totalSheetArea = document.getElementById('totalSheetArea').textContent;
+                    const totalPiecesArea = document.getElementById('totalPiecesArea').textContent;
+                    const wasteArea = document.getElementById('wasteArea').textContent;
+                    const sheetsNeeded = document.getElementById('sheetsNeeded').textContent;
+                    const efficiency = document.getElementById('efficiency').textContent;
+                    
+                    doc.setFontSize(12);
+                    doc.text('Αποτελέσματα Αριστοποίησης:', 15, yPosition);
+                    yPosition += 7;
+                    
+                    doc.setFontSize(10);
+                    doc.text(`Συνολική Επιφάνεια Φύλλου: ${totalSheetArea}`, 15, yPosition);
+                    yPosition += 5;
+                    doc.text(`Συνολική Επιφάνεια Κομματιών: ${totalPiecesArea}`, 15, yPosition);
+                    yPosition += 5;
+                    doc.text(`Σπατάλη Υλικού: ${wasteArea}`, 15, yPosition);
+                    yPosition += 5;
+                    doc.text(`Αριθμός Φύλλων: ${sheetsNeeded}`, 15, yPosition);
+                    yPosition += 5;
+                    doc.text(`Ποσοστό Αξιοποίησης: ${efficiency}`, 15, yPosition);
+                    yPosition += 12;
+                }
+                
+                doc.setFontSize(12);
+                doc.text('Οπτική Αναπαράσταση Κοπών:', 15, yPosition);
+                yPosition += 10;
+                
+                const vizContainer = document.getElementById('visualizationArea');
+                const totalSheets = currentAllocation.length;
+                let sheetIndex = 0;
+                
+                const canvases = vizContainer.querySelectorAll('canvas');
+                canvases.forEach((canvas, idx) => {
+                    if (yPosition > pageHeight - 60) {
+                        doc.addPage();
+                        yPosition = 15;
+                    }
+                    
+                    const imgData = canvas.toDataURL('image/png');
+                    const canvasWidth = 150;
+                    const canvasHeight = (canvas.height / canvas.width) * canvasWidth;
+                    
+                    doc.setFontSize(10);
+                    doc.text(`Φύλλο ${idx + 1} από ${totalSheets}`, 15, yPosition);
+                    yPosition += 5;
+                    
+                    doc.addImage(imgData, 'PNG', (pageWidth - canvasWidth) / 2, yPosition, canvasWidth, canvasHeight);
+                    yPosition += canvasHeight + 10;
+                });
+                
+                doc.save(filename);
+                showSuccess('PDF εξήχθη επιτυχώς');
+            } catch (e) {
+                showError('Σφάλμα κατά την εξαγωγή PDF: ' + e.message);
             }
-            
-            const opt = {
-                margin: [10, 10, 10, 10],
-                filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
-                jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-            };
-            
-            html2pdf().set(opt).from(exportContainer).save().catch((err) => {
-                showError('Σφάλμα κατά την εξαγωγή PDF: ' + err.message);
-            });
         }
         
         document.getElementById('sheetWidth').addEventListener('change', updateCalculation);
