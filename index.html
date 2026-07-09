@@ -299,6 +299,11 @@
             background: #f9fafb;
             border-radius: 8px;
             border: 2px solid #e5e7eb;
+            display: none;
+        }
+        
+        .visualization-container.active {
+            display: block;
         }
         
         .visualization-title {
@@ -403,7 +408,7 @@
                 <div class="empty-state">Δεν υπάρχουν κομμάτια. Προσθέστε κομμάτια παραπάνω.</div>
             </div>
             <div class="button-group" style="margin-top: 20px;">
-                <button class="btn-primary" id="generateVisualizationBtn" onclick="generateVisualization()" style="display: none;">📊 Δημιουργία Οπτικοποίησης</button>
+                <button class="btn-primary" id="generateVisualizationBtn" onclick="generateVisualization()" style="display: none;">📊 Υπολογισμός & Οπτικοποίηση</button>
             </div>
         </div>
         
@@ -436,7 +441,7 @@
                 </div>
             </div>
             
-            <div class="visualization-container">
+            <div class="visualization-container" id="visualizationContainer">
                 <div class="visualization-title">🖼️ Οπτική Αναπαράσταση Κοπών</div>
                 <div id="visualizationArea"></div>
                 <div class="export-group">
@@ -453,7 +458,7 @@
     
     <script>
         const pieces = [];
-        const PADDING = 10;
+        const PADDING = 5;
         const STORAGE_KEY = 'cuttingOptimizationData';
         let visualizationGenerated = false;
         let currentAllocation = null;
@@ -531,6 +536,7 @@
                 pieces.length = 0;
                 renderPieces();
                 document.getElementById('resultsContainer').style.display = 'none';
+                document.getElementById('visualizationContainer').classList.remove('active');
                 visualizationGenerated = false;
                 currentAllocation = null;
                 document.getElementById('generateVisualizationBtn').style.display = 'none';
@@ -564,6 +570,7 @@
             if (pieces.length === 0) {
                 document.getElementById('generateVisualizationBtn').style.display = 'none';
                 document.getElementById('resultsContainer').style.display = 'none';
+                document.getElementById('visualizationContainer').classList.remove('active');
                 visualizationGenerated = false;
                 currentAllocation = null;
                 return;
@@ -612,12 +619,14 @@
             
             currentAllocation = allocatePiecesToSheets(sheetWidth, sheetHeight, sheetsNeeded);
             drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded, currentAllocation);
+            
+            document.getElementById('visualizationContainer').classList.add('active');
         }
         
         function generateVisualization() {
             visualizationGenerated = true;
             calculateOptimization();
-            showSuccess('Οπτικοποίηση δημιουργήθηκε');
+            showSuccess('Υπολογισμός και οπτικοποίηση δημιουργήθηκαν');
         }
         
         function calculateSheetsNeeded(sheetWidth, sheetHeight) {
@@ -633,7 +642,6 @@
         
         function allocatePiecesToSheets(sheetWidth, sheetHeight, totalSheets) {
             const allocation = Array(totalSheets).fill(null).map(() => []);
-            const sheetArea = sheetWidth * sheetHeight;
             
             let piecesToPlace = [];
             pieces.forEach((piece, idx) => {
@@ -641,6 +649,7 @@
                     piecesToPlace.push({
                         width: piece.width,
                         height: piece.height,
+                        quantity: 1,
                         colorIndex: idx,
                         originalId: piece.id
                     });
@@ -649,20 +658,18 @@
             
             piecesToPlace.sort((a, b) => (b.width * b.height) - (a.width * a.height));
             
-            for (let sheetIdx = 0; sheetIdx < totalSheets; sheetIdx++) {
-                allocation[sheetIdx] = [];
-                let remainingArea = sheetArea;
+            for (let pieceIdx = 0; pieceIdx < piecesToPlace.length; pieceIdx++) {
+                const piece = piecesToPlace[pieceIdx];
+                let placed = false;
                 
-                for (let pieceIdx = piecesToPlace.length - 1; pieceIdx >= 0; pieceIdx--) {
-                    const piece = piecesToPlace[pieceIdx];
-                    const pieceArea = piece.width * piece.height;
-                    
-                    if (pieceArea <= remainingArea) {
-                        const placed = placeOnSheet(allocation[sheetIdx], piece, sheetWidth, sheetHeight);
-                        if (placed) {
-                            remainingArea -= pieceArea;
-                            piecesToPlace.splice(pieceIdx, 1);
-                        }
+                for (let sheetIdx = 0; sheetIdx < totalSheets && !placed; sheetIdx++) {
+                    placed = placeOnSheet(allocation[sheetIdx], piece, sheetWidth, sheetHeight);
+                }
+                
+                if (!placed) {
+                    if (allocation.length < totalSheets + 1) {
+                        allocation.push([]);
+                        placeOnSheet(allocation[allocation.length - 1], piece, sheetWidth, sheetHeight);
                     }
                 }
             }
@@ -677,14 +684,14 @@
             ];
             
             for (let orientation of orientations) {
-                const positions = findBestPosition(sheetPieces, orientation.w, orientation.h, sheetWidth, sheetHeight);
-                if (positions) {
+                const position = findBestPosition(sheetPieces, orientation.w, orientation.h, sheetWidth, sheetHeight);
+                if (position) {
                     sheetPieces.push({
                         ...piece,
                         width: orientation.w,
                         height: orientation.h,
-                        x: positions.x,
-                        y: positions.y
+                        x: position.x,
+                        y: position.y
                     });
                     return true;
                 }
@@ -703,8 +710,8 @@
             });
             
             for (let candidate of candidates) {
-                if (candidate.x + pieceWidth <= sheetWidth - PADDING && 
-                    candidate.y + pieceHeight <= sheetHeight - PADDING) {
+                if (candidate.x + pieceWidth + PADDING <= sheetWidth && 
+                    candidate.y + pieceHeight + PADDING <= sheetHeight) {
                     
                     let overlaps = false;
                     for (let placed of sheetPieces) {
@@ -732,13 +739,13 @@
             const container = document.getElementById('visualizationArea');
             container.innerHTML = '';
             
-            for (let sheet = 0; sheet < totalSheets; sheet++) {
+            for (let sheet = 0; sheet < Math.min(allocation.length, totalSheets); sheet++) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'canvas-wrapper';
                 
                 const label = document.createElement('div');
                 label.className = 'canvas-label';
-                label.textContent = `Φύλλο ${sheet + 1} από ${totalSheets}`;
+                label.textContent = `Φύλλο ${sheet + 1} από ${allocation.length}`;
                 
                 const canvas = document.createElement('canvas');
                 canvas.id = `cuttingCanvas-${sheet}`;
@@ -793,7 +800,7 @@
                     ctx.font = 'bold 12px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(item.width + 'x' + item.height, x + pieceWidth / 2, y + pieceHeight / 2);
+                    ctx.fillText(item.width.toFixed(1) + 'x' + item.height.toFixed(1), x + pieceWidth / 2, y + pieceHeight / 2);
                 }
             });
             
@@ -921,7 +928,6 @@
                 
                 const vizContainer = document.getElementById('visualizationArea');
                 const totalSheets = currentAllocation.length;
-                let sheetIndex = 0;
                 
                 const canvases = vizContainer.querySelectorAll('canvas');
                 canvases.forEach((canvas, idx) => {
