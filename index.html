@@ -132,6 +132,12 @@
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
         
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .btn-secondary {
             background: #f0f0f0;
             color: #333;
@@ -396,6 +402,9 @@
             <div class="pieces-list" id="piecesList">
                 <div class="empty-state">Δεν υπάρχουν κομμάτια. Προσθέστε κομμάτια παραπάνω.</div>
             </div>
+            <div class="button-group" style="margin-top: 20px;">
+                <button class="btn-primary" id="generateVisualizationBtn" onclick="generateVisualization()" style="display: none;">📊 Δημιουργία Οπτικοποίησης</button>
+            </div>
         </div>
         
         <div id="resultsContainer" style="display: none;">
@@ -445,6 +454,7 @@
         const pieces = [];
         const PADDING = 10;
         const STORAGE_KEY = 'cuttingOptimizationData';
+        let visualizationGenerated = false;
         
         function validateInput(width, height, fieldName) {
             if (!width || !height || width <= 0 || height <= 0) {
@@ -496,7 +506,7 @@
             document.getElementById('pieceQuantity').value = '1';
             
             renderPieces();
-            calculateOptimization();
+            updateCalculation();
             showSuccess('Κομμάτι προστέθηκε επιτυχώς');
         }
         
@@ -505,7 +515,7 @@
             if (index > -1) {
                 pieces.splice(index, 1);
                 renderPieces();
-                calculateOptimization();
+                updateCalculation();
                 showSuccess('Κομμάτι διαγράφηκε');
             }
         }
@@ -519,6 +529,8 @@
                 pieces.length = 0;
                 renderPieces();
                 document.getElementById('resultsContainer').style.display = 'none';
+                visualizationGenerated = false;
+                document.getElementById('generateVisualizationBtn').style.display = 'none';
                 showSuccess('Όλα τα κομμάτια διαγράφηκαν');
             }
         }
@@ -542,16 +554,34 @@
             `).join('');
         }
         
+        function updateCalculation() {
+            const sheetWidth = parseFloat(document.getElementById('sheetWidth').value);
+            const sheetHeight = parseFloat(document.getElementById('sheetHeight').value);
+            
+            if (pieces.length === 0) {
+                document.getElementById('generateVisualizationBtn').style.display = 'none';
+                document.getElementById('resultsContainer').style.display = 'none';
+                visualizationGenerated = false;
+                return;
+            }
+            
+            if (!sheetWidth || !sheetHeight) {
+                document.getElementById('generateVisualizationBtn').style.display = 'none';
+                return;
+            }
+            
+            if (!validateInput(sheetWidth, sheetHeight, 'φύλλο')) {
+                return;
+            }
+            
+            document.getElementById('generateVisualizationBtn').style.display = 'inline-block';
+        }
+        
         function calculateOptimization() {
             const sheetWidth = parseFloat(document.getElementById('sheetWidth').value);
             const sheetHeight = parseFloat(document.getElementById('sheetHeight').value);
             
             if (!sheetWidth || !sheetHeight || pieces.length === 0) {
-                document.getElementById('resultsContainer').style.display = 'none';
-                return;
-            }
-            
-            if (!validateInput(sheetWidth, sheetHeight, 'φύλλο')) {
                 return;
             }
             
@@ -577,6 +607,12 @@
             document.getElementById('resultsContainer').style.display = 'block';
             
             drawAllSheetVisualizations(sheetWidth, sheetHeight, sheetsNeeded);
+        }
+        
+        function generateVisualization() {
+            visualizationGenerated = true;
+            calculateOptimization();
+            showSuccess('Οπτικοποίηση δημιουργήθηκε');
         }
         
         function calculateSheetsNeeded(sheetWidth, sheetHeight) {
@@ -659,6 +695,9 @@
             
             const startX = 20;
             const startY = 20;
+            
+            ctx.fillStyle = '#f9fafb';
+            ctx.fillRect(startX, startY, sheetWidth * scale, sheetHeight * scale);
             
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 3;
@@ -763,7 +802,7 @@
                 pieces.push(...data.pieces);
                 
                 renderPieces();
-                calculateOptimization();
+                updateCalculation();
                 showSuccess('Τα δεδομένα φορτώθηκαν επιτυχώς');
             } catch (e) {
                 showError('Σφάλμα κατά τη φόρτωση: ' + e.message);
@@ -771,6 +810,11 @@
         }
         
         function exportToPDF() {
+            if (!visualizationGenerated) {
+                showError('Δημιουργήστε πρώτα την οπτικοποίηση πριν εξάγετε σε PDF');
+                return;
+            }
+            
             const element = document.querySelector('.results');
             if (!element) {
                 showError('Δεν υπάρχουν αποτελέσματα για εξαγωγή');
@@ -827,8 +871,8 @@
             });
         }
         
-        document.getElementById('sheetWidth').addEventListener('change', calculateOptimization);
-        document.getElementById('sheetHeight').addEventListener('change', calculateOptimization);
+        document.getElementById('sheetWidth').addEventListener('change', updateCalculation);
+        document.getElementById('sheetHeight').addEventListener('change', updateCalculation);
         
         document.getElementById('pieceHeight').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') addPiece();
